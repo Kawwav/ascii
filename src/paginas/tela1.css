@@ -9,7 +9,6 @@
   position: relative;
 }
 
-/* vídeo invisível, usado só como fonte de imagem */
 .tela1-video-oculto {
   position: absolute;
   width: 1px;
@@ -52,7 +51,7 @@
   font-family: monospace;
   cursor: pointer;
 }
-/* câmera normal (espelhada), mostrada quando o efeito ASCII está desligado */
+
 .tela1-video-visivel {
   position: absolute;
   inset: 0;
@@ -62,7 +61,6 @@
   transform: scaleX(-1);
 }
 
-/* área da câmera: ocupa a janela, ou a proporção real da câmera (ajustada pelo JS) */
 .tela1-palco {
   position: relative;
   width: 100vw;
@@ -70,7 +68,6 @@
   overflow: hidden;
 }
 
-/* aviso quando o navegador ainda bloqueia o áudio */
 .tela1-dica {
   position: absolute;
   left: 0;
@@ -84,7 +81,6 @@
   pointer-events: none;
 }
 
-/* faixa preta onde o ASCII aparece (esconde a câmera só nessa região) */
 .tela1-buraco {
   position: absolute;
   inset: 0;
@@ -93,7 +89,6 @@
   pointer-events: none;
 }
 
-/* linhas e pontos entre os dedos das duas mãos */
 .tela1-linhas {
   position: absolute;
   inset: 0;
@@ -101,7 +96,7 @@
   height: 100%;
   pointer-events: none;
 }
-/* ---------- painel de remixagem (vidro estilo Apple) ---------- */
+
 .remix-painel {
   position: absolute;
   top: 50%;
@@ -165,7 +160,7 @@
 @media (max-width: 700px) {
   .remix-painel { top: auto; bottom: 12px; right: 12px; left: 12px; width: auto; transform: none; max-height: 45vh; }
 }
-/* ---------- mãos: um som por dedo ---------- */
+
 .maos-secao { margin-top: 14px; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
 .maos-titulo {
   margin: 0 0 10px; font-size: 11px; font-weight: 600; text-transform: uppercase;
@@ -205,7 +200,7 @@
   background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.25);
 }
 .som-modo option { color: #111; }
-/* ---------- interruptor: manter o som sem mostrar os dedos ---------- */
+
 .som-manter {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   margin-top: 12px; font-size: 13px; color: rgba(255, 255, 255, 0.92); cursor: pointer;
@@ -222,11 +217,11 @@
 }
 .som-manter input:checked { background: #34c759; }
 .som-manter input:checked::after { transform: translateX(18px); }
-/* ---------- gravador (parte de baixo, estilo FL Studio) ---------- */
+
 .rec-barra {
   position: absolute;
   left: 24px;
-  right: 348px; /* deixa o painel de remixagem livre */
+  right: 348px;
   bottom: 24px;
   padding: 12px 14px 14px;
   border-radius: 22px;
@@ -238,7 +233,7 @@
   border: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 20px 60px rgba(0, 0, 0, 0.5);
   z-index: 5;
-  --alt: 4px; /* altura de cada pista (recolhida) */
+  --alt: 4px;
 }
 .rec-barra.aberta { --alt: 11px; }
 .rec-controles { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
@@ -293,4 +288,48 @@
   .rec-barra { top: 12px; bottom: auto; left: 12px; right: 12px; }
   .rec-estado { display: none; }
   .tela1-dica { bottom: 46vh; }
+}
+
+.tela1-voxel {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.estilo-seletor {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  display: flex;
+  padding: 3px;
+  border-radius: 14px;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  background: linear-gradient(135deg, rgba(28, 28, 30, 0.82), rgba(0, 0, 0, 0.88));
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 10px 30px rgba(0, 0, 0, 0.4);
+  z-index: 5;
+}
+.estilo-seletor button {
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: 11px;
+  cursor: pointer;
+  transition: background 0.25s, color 0.25s;
+}
+.estilo-seletor button.ativo {
+  background: rgba(255, 255, 255, 0.9);
+  color: #111;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+@media (max-width: 700px) {
+  .estilo-seletor { top: auto; left: 12px; bottom: calc(45vh + 20px); }
 }

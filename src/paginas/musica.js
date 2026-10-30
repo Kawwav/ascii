@@ -1,45 +1,23 @@
-// Música eletrônica gerada na hora com a Web Audio API (nenhum arquivo de áudio).
-//
-// Cada DEDO é uma camada sonora (10 no total):
-// HARDCORE / GABBER: bumbo distorcido e pesado, baixo ao contrário, stabs de rave e hoover.
-//   mão esquerda (da tela): polegar = bumbo gabber | indicador = baixo (offbeat) | médio = caixa+palma
-//                           anelar = hi-hat  | mindinho = hat aberto + prato
-//   mão direita  (da tela): polegar = stab de rave | indicador = lead serrilhado | médio = hoover
-//                           anelar = acid 303 | mindinho = percussão (tons e rim)
-// Tudo começa mudo: cada camada só entra quando o dedo dela é LEVANTADO (depois de
-// ter estado fechado) e fica muda de novo quando o dedo fecha.
-// Ao LEVANTAR um dedo dispara um efeito (subida); ao FECHAR dispara outro (descida).
-// Além disso, a inclinação e a altura das mãos mudam o tom (nota do baixo, arpejo, brilho).
-//
-// GRAVADOR (estilo FL Studio): grava quando cada dedo é levantado/fechado, quantizado em 1/16,
-// e repete em loop (1, 2, 4 ou 8 compassos), mesmo com as mãos fora da câmera.
-
-// false = ao ligar o efeito tudo começa mudo (dedos já levantados não tocam até serem fechados e levantados de novo)
-// true  = dedos já levantados ao ligar começam tocando
 const COMECAM_LIGADAS = false
 
 const BPM = 172
-const PASSO = 60 / BPM / 4 // duração de 1/16 de compasso, em segundos
+const PASSO = 60 / BPM / 4
 
-// escala: lá menor pentatônica (qualquer combinação soa bem junta)
 const PENTATONICA = [0, 3, 5, 7, 10]
-const BASE_BAIXO = 33 // lá 1
-const BASE_LEAD = 57 // lá 3
+const BASE_BAIXO = 33
+const BASE_LEAD = 57
 
-// passos (0 a 15) do compasso em que cada camada toca
-const BAIXO = { 2: 0, 6: 0, 10: 0, 11: 7, 14: 3 } // passo -> semitons acima da raiz
-const ARPEJO = [0, 2, 4, 5, 4, 2, 3, 1] // graus da escala (1 nota a cada 1/8)
+const BAIXO = { 2: 0, 6: 0, 10: 0, 11: 7, 14: 3 }
+const ARPEJO = [0, 2, 4, 5, 4, 2, 3, 1]
 const HOOVER_PASSOS = [0, 3, 6, 10, 14]
 const HOOVER_GRAUS = [0, 2, 0, 3, 4]
 const STAB_PASSOS = [0, 3, 6, 10]
 const ACID_PASSOS = { 0: 0, 3: 0, 6: 12, 7: 0, 10: 3, 12: 5, 14: 7, 15: 12 }
-const PERC_PASSOS = { 3: 0, 6: 3, 9: 5, 11: 0, 14: 7 } // passo -> semitons do tom
+const PERC_PASSOS = { 3: 0, 6: 3, 9: 5, 11: 0, 14: 7 }
 
-// transposição global (semitons) controlada pelo giro das mãos
 let TRANSP = 0
 const mtof = (m) => 440 * Math.pow(2, (m - 69 + TRANSP) / 12)
 
-// ---------------------------------------------------------------- remixagem
 export const RITMOS = {
   four: { nome: 'Gabber', bumbo: [0, 4, 8, 12], caixa: [4, 12], hats: 'oitavos', baixo: { 2: 0, 6: 0, 10: 0, 14: 0 } },
   break: { nome: 'Frenchcore', bumbo: [0, 2, 4, 6, 8, 10, 12, 14], caixa: [4, 12], hats: 'oitavos', baixo: { 1: 0, 3: 0, 5: 0, 7: 0, 9: 0, 11: 0, 13: 0, 15: 0 } },
@@ -62,8 +40,7 @@ export const ESCALAS = {
   blues: { nome: 'Blues', notas: [0, 3, 5, 6, 7, 10], acorde: [0, 10, 15, 18] },
   maior7: { nome: 'Acorde maj7', notas: [0, 4, 7, 11], acorde: [0, 4, 11, 19] },
 }
-// ---------------------------------------------------------------- sons dos dedos
-// Cada dedo toca UM som, escolhido pelo painel. Pode ser um som do app ou um arquivo do computador.
+
 export const SONS_BASE = {
   bumbo: { nome: 'Bumbo gabber', curto: 'Bumbo' },
   baixo: { nome: 'Baixo 808', curto: 'Baixo' },
@@ -82,7 +59,6 @@ export const SONS_BASE = {
   rumble: { nome: 'Rumble', curto: 'Rumble' },
   stab2: { nome: 'Stab house', curto: 'Stab 2' },
 }
-// ordem dos dedos: polegar, indicador, médio, anelar, mindinho
 
 export const VOLUMES_PADRAO = {
   bumbo: 1,
@@ -108,9 +84,8 @@ export const MAPA_PADRAO = {
   esq: ['bumbo', 'baixo', 'caixa', 'hat', 'prato'],
   dir: ['stab', 'lead', 'hoover', 'acid', 'perc'],
 }
-// modos de um arquivo de áudio: 'uma' = toca ao levantar o dedo | 'tempo' = repete a cada tempo
-// | 'compasso' = repete a cada compasso (em todos, fechar o dedo para o som)
-const SONS_ARQUIVO = {} // id -> { nome, buffer, modo }
+
+const SONS_ARQUIVO = {}
 let contadorArquivo = 0
 export const listarArquivos = () =>
   Object.entries(SONS_ARQUIVO).map(([id, a]) => ({ id, nome: a.nome, modo: a.modo }))
@@ -121,7 +96,7 @@ export const configurarArquivo = (id, op) => {
 const remix = { ritmo: 'four', instrumentos: 'todos', escala: 'pentaMenor' }
 let PENTATONICA_ATUAL = ESCALAS.pentaMenor.notas
 const limitar = (v, min = 0, max = 1) => Math.min(max, Math.max(min, v))
-// grau da escala -> semitons (passa de oitava a cada 5 graus)
+
 const grau = (g) => {
   const n = PENTATONICA_ATUAL.length
   return 12 * Math.floor(g / n) + PENTATONICA_ATUAL[((g % n) + n) % n]
@@ -141,30 +116,27 @@ export function criarMusica() {
   let proximo = 0
   let passo = 0
   let tocando = false
-  // por dedo: true = o som dele continua tocando mesmo quando a mão sai da câmera
+
   const manter = { esq: [false, false, false, false, false], dir: [false, false, false, false, false] }
 
-  // posição física dos dedos (true = levantado); null = mão ainda não vista
   const ativas = { esq: null, dir: null }
-  // camadas que estão realmente tocando (um dedo levantado a liga, um dedo fechado a desliga)
+
   const camada = { esq: [false, false, false, false, false], dir: [false, false, false, false, false] }
-  // som de cada dedo (pode ser trocado pelo painel)
+
   let mapa = { esq: [...MAPA_PADRAO.esq], dir: [...MAPA_PADRAO.dir] }
-  // arquivos de áudio tocando agora (um por dedo)
+
   const fontes = { esq: [null, null, null, null, null], dir: [null, null, null, null, null] }
   let previaAte = 0
   let fontePrevia = null
   const ultimoEfeito = { esq: [0, 0, 0, 0, 0], dir: [0, 0, 0, 0, 0] }
-  // ---- gravador ----
-  // eventos: { p: passo (0 a compassos*16-1), v: volta em que foi gravado, lado, dedo, sobe }
+
   const grav = { compassos: 4, eventos: [], gravando: false, reproduzindo: false }
-  // camadas ligadas pela gravação (separadas das que vêm das mãos ao vivo)
+
   const camadaG = { esq: [false, false, false, false, false], dir: [false, false, false, false, false] }
   let aoMudarGrav = null
   const on = (lado, i) =>
     (camada[lado][i] || (grav.reproduzindo && camadaG[lado][i])) && INSTRUMENTOS[remix.instrumentos][lado][i] === 1
 
-  // estado controlado pela inclinação/altura das mãos
   const e = { raiz: BASE_BAIXO, desloc: 0, hat: 0.5, brilho: 0.5 }
 
   function montar() {
@@ -184,7 +156,6 @@ export function criarMusica() {
     mestre.gain.value = 0
     mestre.connect(comp)
 
-    // canais individuais da mesa de som (mixer)
     for (const id of [...Object.keys(SONS_BASE), 'arquivos']) {
       const g = ctx.createGain()
       g.gain.value = volumes[id] !== undefined ? volumes[id] : 1
@@ -192,7 +163,6 @@ export function criarMusica() {
       canais[id] = g
     }
 
-    // eco (delay pontuado) usado por lead e hoover
     const eco = ctx.createDelay(1)
     eco.delayTime.value = (60 / BPM) * 0.75
     const realimenta = ctx.createGain()
@@ -208,7 +178,6 @@ export function criarMusica() {
     realimenta.connect(eco)
     abafa.connect(mestre)
 
-    // lead passa por um filtro compartilhado (a mão direita abre e fecha)
     filtroLead = ctx.createBiquadFilter()
     filtroLead.type = 'lowpass'
     filtroLead.Q.value = 6
@@ -216,7 +185,6 @@ export function criarMusica() {
     filtroLead.connect(canais.lead)
     filtroLead.connect(enviaEco)
 
-    // saturação do 808 (deixa o grave "gordo")
     saturador = ctx.createWaveShaper()
     const curva = new Float32Array(1024)
     for (let i = 0; i < curva.length; i++) {
@@ -229,7 +197,6 @@ export function criarMusica() {
     saturador.connect(saidaBaixo)
     saidaBaixo.connect(canais.baixo)
 
-    // distorção pesada do bumbo gabber (clipping forte)
     saturaBumbo = ctx.createWaveShaper()
     const curvaBumbo = new Float32Array(1024)
     for (let i = 0; i < curvaBumbo.length; i++) {
@@ -242,15 +209,11 @@ export function criarMusica() {
     saturaBumbo.connect(saidaBumbo)
     saidaBumbo.connect(canais.bumbo)
 
-    // ruído branco reaproveitado por hi-hat, palma, prato e efeitos
     ruido = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate)
     const d = ruido.getChannelData(0)
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
   }
 
-  // ---------------------------------------------------------------- blocos básicos
-
-  // envelope: sobe rápido e cai exponencialmente
   function envelope(g, t, pico, ataque, queda) {
     g.gain.setValueAtTime(0.0001, t)
     g.gain.exponentialRampToValueAtTime(pico, t + ataque)
@@ -273,7 +236,6 @@ export function criarMusica() {
     s.stop(t + ataque + queda + 0.05)
   }
 
-  // oscilador cuja frequência varre de f0 até f1 (lasers, quedas, subidas)
   function varrer(t, tipo, f0, f1, dur, pico, destino = mestre) {
     const o = ctx.createOscillator()
     o.type = tipo
@@ -287,7 +249,6 @@ export function criarMusica() {
     o.stop(t + dur + 0.05)
   }
 
-  // sopro de ruído com filtro varrendo: subindo = "riser", descendo = "downlifter"
   function sopro(t, subindo, dur, pico, grave = 300, agudo = 7000) {
     const s = ctx.createBufferSource()
     s.buffer = ruido
@@ -307,7 +268,6 @@ export function criarMusica() {
     s.stop(t + dur + 0.1)
   }
 
-  // repete uma batida acelerando (rolo de caixa, rolo de hat...)
   function rolo(t, n, total, voz) {
     for (let k = 0; k < n; k++) {
       const quando = total * (1 - Math.pow(1 - k / n, 1.6))
@@ -315,7 +275,6 @@ export function criarMusica() {
     }
   }
 
-  // sequência rápida de notas subindo ou descendo pela escala
   function corrida(t, voz, subindo, n, espaco, base) {
     for (let k = 0; k < n; k++) {
       const g = base + (subindo ? k : n - 1 - k)
@@ -323,9 +282,6 @@ export function criarMusica() {
     }
   }
 
-  // ---------------------------------------------------------------- vozes
-
-  // bumbo gabber: queda de tom rápida + distorção pesada + estalo no ataque
   function bumbo(t) {
     const o = ctx.createOscillator()
     const g = ctx.createGain()
@@ -338,7 +294,7 @@ export function criarMusica() {
     g.connect(saturaBumbo)
     o.start(t)
     o.stop(t + 0.4)
-    rajada(t, 'highpass', 2500, 0.7, 0.35, 0.001, 0.012, canais.bumbo) // clique do ataque
+    rajada(t, 'highpass', 2500, 0.7, 0.35, 0.001, 0.012, canais.bumbo)
   }
 
   function baixo808(t, midi, dur) {
@@ -349,7 +305,7 @@ export function criarMusica() {
     for (const tipo of ['sine', 'triangle']) {
       const o = ctx.createOscillator()
       o.type = tipo
-      // o 808 começa mais agudo e "desce" até a nota
+
       o.frequency.setValueAtTime(f * 1.6, t)
       o.frequency.exponentialRampToValueAtTime(f, t + 0.06)
       const og = ctx.createGain()
@@ -361,7 +317,6 @@ export function criarMusica() {
     }
   }
 
-  // 808 que desliza de uma nota para outra
   function deslizeBaixo(t, de, ate, dur) {
     const g = ctx.createGain()
     envelope(g, t, 1, 0.02, dur)
@@ -415,7 +370,6 @@ export function criarMusica() {
     }
   }
 
-  // hoover: sons de rave gritados (3 serras desafinadas que caem de tom)
   function hoover(t, midi, dur = 0.3) {
     const f = mtof(midi)
     const filtro = ctx.createBiquadFilter()
@@ -440,7 +394,6 @@ export function criarMusica() {
     }
   }
 
-  // baixo "acid" (estilo 303): serra + filtro ressonante com envelope
   function acid(t, midi, dur, de = null) {
     const o = ctx.createOscillator()
     o.type = 'sawtooth'
@@ -466,7 +419,6 @@ export function criarMusica() {
     o.stop(t + dur + 0.05)
   }
 
-  // stab de rave: acorde curto, serrilhado e brilhante
   function pad(t, midi) {
     const filtro = ctx.createBiquadFilter()
     filtro.type = 'lowpass'
@@ -491,7 +443,6 @@ export function criarMusica() {
     }
   }
 
-  // batida de acorde brilhante (efeito)
   function acordeBrilho(t, midi) {
     const filtro = ctx.createBiquadFilter()
     filtro.type = 'lowpass'
@@ -513,7 +464,6 @@ export function criarMusica() {
     }
   }
 
-  // tambor afinado (tom/conga)
   function tom(t, midi, vel = 0.25) {
     const f = mtof(midi)
     const o = ctx.createOscillator()
@@ -529,9 +479,6 @@ export function criarMusica() {
     rajada(t, 'bandpass', 2500, 2, vel * 0.3, 0.001, 0.02, canais.perc)
   }
 
-  // ---------------------------------------------------------------- vozes extras
-
-  // kick limpo e socado (house/techno): queda de tom + clique curto
   function kick(t) {
     const o = ctx.createOscillator()
     const g = ctx.createGain()
@@ -547,7 +494,6 @@ export function criarMusica() {
     rajada(t, 'highpass', 3000, 0.7, 0.25, 0.001, 0.01, canais.kick)
   }
 
-  // clap: 3 estalos rápidos + cauda
   function clap(t, vel = 1) {
     for (const k of [0, 0.011, 0.022]) {
       rajada(t + k, 'bandpass', 1300, 1.4, 0.32 * vel, 0.001, 0.015, canais.clap)
@@ -555,12 +501,10 @@ export function criarMusica() {
     rajada(t + 0.033, 'bandpass', 1100, 1.1, 0.34 * vel, 0.002, 0.22, canais.clap)
   }
 
-  // hat aberto: chiado longo
   function hatAberto(t, vel = 0.16) {
     rajada(t, 'highpass', 6500 + e.hat * 4000, 0.6, vel, 0.002, 0.3, canais.openhat)
   }
 
-  // rumble: grave rouco que "respira" entre os kicks
   function rumble(t, dur) {
     const filtro = ctx.createBiquadFilter()
     filtro.type = 'lowpass'
@@ -581,7 +525,6 @@ export function criarMusica() {
     rajada(t, 'lowpass', 130, 1, 0.45, 0.01, dur, canais.rumble)
   }
 
-  // stab house: acorde curto e seco (quadrada + serra)
   function stabHouse(t, midi) {
     const filtro = ctx.createBiquadFilter()
     filtro.type = 'lowpass'
@@ -605,8 +548,6 @@ export function criarMusica() {
     }
   }
 
-  // ---------------------------------------------------------------- arquivos de áudio
-
   function pararFonte(lado, dedo) {
     const f = fontes[lado][dedo]
     if (!f || !ctx) return
@@ -616,7 +557,7 @@ export function criarMusica() {
       f.g.gain.setTargetAtTime(0, ctx.currentTime, 0.02)
       f.src.stop(ctx.currentTime + 0.12)
     } catch {
-      /* já tinha parado */
+
     }
   }
 
@@ -634,18 +575,14 @@ export function criarMusica() {
     fontes[lado][dedo] = { src, g }
   }
 
-  // ---------------------------------------------------------------- sons do app
-  // cada som tem: passo (o que toca em cada 1/16 enquanto o dedo está levantado),
-  // subir (efeito ao levantar o dedo) e descer (efeito ao fechar o dedo)
-
   const SONS = {
     bumbo: {
       passo: (i, p, c, t, R) => {
-        // no último compasso de cada 4, o bumbo vira um rolo de colcheias rápidas
+
         const rolo4 = c % 4 === 3 && p >= 12
         if (rolo4 || R.bumbo.includes(p)) bumbo(t)
       },
-      // sobe = riser + impacto | fecha = queda de grave
+
       subir: (t) => {
         sopro(t, true, 0.5, 0.22)
         bumbo(t + 0.5)
@@ -657,7 +594,7 @@ export function criarMusica() {
       passo: (i, p, c, t, R) => {
         if (p in R.baixo) baixo808(t, e.raiz + R.baixo[p], PASSO * 3)
       },
-      // sobe = 808 desliza para cima | fecha = desliza para baixo
+
       subir: (t) => deslizeBaixo(t, e.raiz, e.raiz + 12, 0.5),
       descer: (t) => deslizeBaixo(t, e.raiz + 12, e.raiz - 5, 0.6),
     },
@@ -668,7 +605,7 @@ export function criarMusica() {
           caixa(t, 0.8)
         }
       },
-      // sobe = rolo de caixa | fecha = palma gigante com cauda
+
       subir: (t) => rolo(t, 10, 0.7, (tt, v) => caixa(tt, v)),
       descer: (t) => {
         rajada(t, 'bandpass', 1600, 1, 0.45, 0.003, 0.8)
@@ -683,7 +620,7 @@ export function criarMusica() {
           rolo(t, 4, PASSO * 0.9, (tt, v) => hat(tt, false, 0.04 + 0.05 * v))
         } else hat(t, false, p % 4 === 0 ? 0.1 : p % 2 === 1 ? 0.045 : 0.075)
       },
-      // sobe = rolo de hi-hat | fecha = 3 hats decrescendo
+
       subir: (t) => rolo(t, 14, 0.6, (tt, v) => hat(tt, false, 0.04 + 0.14 * v)),
       descer: (t) => [0, 0.05, 0.1].forEach((k, j) => hat(t + k, false, 0.14 - 0.04 * j)),
     },
@@ -692,7 +629,7 @@ export function criarMusica() {
         if (p % 4 === 2) hat(t, true, 0.14)
         if (i % 128 === 0) prato(t)
       },
-      // sobe = prato de ataque | fecha = prato ao contrário
+
       subir: (t) => prato(t, 0.22),
       descer: (t) => {
         sopro(t, true, 0.8, 0.16, 2000, 9000)
@@ -703,7 +640,7 @@ export function criarMusica() {
       passo: (i, p, c, t) => {
         if (STAB_PASSOS.includes(p)) pad(t, e.raiz + 24)
       },
-      // sobe = acorde brilhante | fecha = rumble grave
+
       subir: (t) => acordeBrilho(t, e.raiz + 24),
       descer: (t) => {
         varrer(t, 'sine', 70, 28, 1.4, 0.6)
@@ -717,7 +654,7 @@ export function criarMusica() {
           lead(t, BASE_LEAD + grau(g), PASSO * 1.8)
         }
       },
-      // sobe = corrida do arpejo para cima | fecha = para baixo
+
       subir: (t) =>
         corrida(t, (tt, s) => lead(tt, BASE_LEAD + s, PASSO * 1.2), true, 8, PASSO * 0.75, e.desloc),
       descer: (t) =>
@@ -728,7 +665,7 @@ export function criarMusica() {
         const k = HOOVER_PASSOS.indexOf(p)
         if (k >= 0) hoover(t, BASE_LEAD + grau(HOOVER_GRAUS[k] + e.desloc + (c % 2) * 2), PASSO * 2.5)
       },
-      // sobe = hoovers subindo | fecha = hoovers descendo
+
       subir: (t) => corrida(t, (tt, s) => hoover(tt, BASE_LEAD + s, 0.25), true, 6, 0.06, e.desloc),
       descer: (t) => corrida(t, (tt, s) => hoover(tt, BASE_LEAD + s, 0.25), false, 6, 0.06, e.desloc),
     },
@@ -736,16 +673,16 @@ export function criarMusica() {
       passo: (i, p, c, t) => {
         if (p in ACID_PASSOS) acid(t, e.raiz + 12 + ACID_PASSOS[p], PASSO * 0.9)
       },
-      // sobe = acid desliza abrindo o filtro | fecha = desliza fechando
+
       subir: (t) => acid(t, e.raiz + 36, 0.6, e.raiz + 12),
       descer: (t) => acid(t, e.raiz + 12, 0.6, e.raiz + 36),
     },
     perc: {
       passo: (i, p, c, t) => {
         if (p in PERC_PASSOS) tom(t, 50 + PERC_PASSOS[p])
-        if (p === 15) rajada(t, 'bandpass', 3200, 3, 0.18, 0.001, 0.03, canais.perc) // rim
+        if (p === 15) rajada(t, 'bandpass', 3200, 3, 0.18, 0.001, 0.03, canais.perc)
       },
-      // sobe = laser subindo | fecha = laser caindo + tom
+
       subir: (t) => varrer(t, 'square', 250, 3500, 0.22, 0.07, canais.perc),
       descer: (t) => {
         varrer(t, 'square', 3500, 250, 0.22, 0.07, canais.perc)
@@ -756,7 +693,7 @@ export function criarMusica() {
       passo: (i, p, c, t, R) => {
         if (R.bumbo.includes(p)) kick(t)
       },
-      // sobe = rolo de kicks + impacto | fecha = queda de grave
+
       subir: (t) => {
         rolo(t, 6, 0.4, (tt) => kick(tt))
         kick(t + 0.45)
@@ -767,7 +704,7 @@ export function criarMusica() {
       passo: (i, p, c, t, R) => {
         if (R.caixa.includes(p)) clap(t)
       },
-      // sobe = rolo de claps | fecha = clap com cauda
+
       subir: (t) => rolo(t, 8, 0.5, (tt, v) => clap(tt, v)),
       descer: (t) => {
         clap(t)
@@ -778,7 +715,7 @@ export function criarMusica() {
       passo: (i, p, c, t) => {
         hat(t, false, p % 4 === 0 ? 0.11 : p % 4 === 2 ? 0.03 : p % 2 === 1 ? 0.05 : 0.08, canais.hats)
       },
-      // sobe = rolo de hats | fecha = 3 hats decrescendo
+
       subir: (t) => rolo(t, 12, 0.5, (tt, v) => hat(tt, false, 0.04 + 0.12 * v, canais.hats)),
       descer: (t) => [0, 0.05, 0.1].forEach((k, j) => hat(t + k, false, 0.13 - 0.04 * j, canais.hats)),
     },
@@ -786,7 +723,7 @@ export function criarMusica() {
       passo: (i, p, c, t) => {
         if (p % 4 === 2) hatAberto(t)
       },
-      // sobe = hat aberto forte | fecha = chiado subindo + hat aberto
+
       subir: (t) => hatAberto(t, 0.24),
       descer: (t) => {
         sopro(t, true, 0.5, 0.14, 3000, 10000)
@@ -797,7 +734,7 @@ export function criarMusica() {
       passo: (i, p, c, t) => {
         if (p % 4 === 2) rumble(t, PASSO * 2.2)
       },
-      // sobe = grave subindo + rumble longo | fecha = queda de grave
+
       subir: (t) => {
         sopro(t, true, 0.8, 0.2, 60, 600)
         rumble(t + 0.8, 1.2)
@@ -808,7 +745,7 @@ export function criarMusica() {
       passo: (i, p, c, t) => {
         if ([2, 6, 10, 13].includes(p)) stabHouse(t, e.raiz + 24)
       },
-      // sobe = 3 stabs subindo | fecha = stab grave + queda
+
       subir: (t) => [0, 3, 7].forEach((s, j) => stabHouse(t + j * 0.14, e.raiz + 24 + s)),
       descer: (t) => {
         stabHouse(t, e.raiz + 12)
@@ -817,30 +754,29 @@ export function criarMusica() {
     },
   }
 
-  // efeito de subida/descida do dedo, seja som do app ou arquivo
+  const SEM_EFEITO = { subir: () => {}, descer: () => {} }
+
   function efeitoDo(lado, dedo) {
     const id = mapa[lado][dedo]
-    if (SONS[id]) return SONS[id]
+
+    if (SONS[id]) return SEM_EFEITO
     return {
       subir: (t) => tocarArquivo(t, id, lado, dedo),
       descer: () => pararFonte(lado, dedo),
     }
   }
 
-  // ---------------------------------------------------------------- sequenciador
-
   function tocarPasso(i, t) {
     const p = i % 16
     const compasso = Math.floor(i / 16)
     const R = RITMOS[remix.ritmo]
 
-    // repete o que foi gravado (liga/desliga camadas e dispara os efeitos dos dedos)
     if (grav.reproduzindo && grav.eventos.length) {
       const n = grav.compassos * 16
       const pos = i % n
       const volta = Math.floor(i / n)
       for (const ev of grav.eventos) {
-        if (ev.p !== pos || ev.v === volta) continue // o que acabou de ser gravado já tocou ao vivo
+        if (ev.p !== pos || ev.v === volta) continue
         camadaG[ev.lado][ev.dedo] = ev.sobe
         const fx = efeitoDo(ev.lado, ev.dedo)
         if (ev.sobe) fx.subir(t)
@@ -864,7 +800,6 @@ export function criarMusica() {
     }
   }
 
-  // agenda as notas um pouco à frente (relógio do áudio é bem mais preciso que o do JS)
   function agendar() {
     if (!ctx) return
     while (proximo < ctx.currentTime + 0.15) {
@@ -874,8 +809,6 @@ export function criarMusica() {
     }
   }
 
-  // ---------------------------------------------------------------- relógio e gravador
-
   function ligarRelogio() {
     if (!ctx || timer) return
     for (const ev of grav.eventos) ev.v = -1
@@ -884,14 +817,12 @@ export function criarMusica() {
     timer = setInterval(agendar, 25)
   }
 
-  // o relógio só para quando nem o efeito nem o loop gravado estão tocando
   function desligarRelogio() {
     if (tocando || grav.reproduzindo) return
     clearInterval(timer)
     timer = 0
   }
 
-  // passo (inteiro) do loop que está tocando agora
   function passoAtual() {
     const n = grav.compassos * 16
     const s = Math.floor(passo - (proximo - ctx.currentTime) / PASSO)
@@ -914,12 +845,11 @@ export function criarMusica() {
   function registrar(lado, dedo, sobe) {
     if (!grav.gravando || !ctx || !timer) return
     const n = grav.compassos * 16
-    const bruto = Math.round(passo - (proximo - ctx.currentTime) / PASSO) // quantiza em 1/16
+    const bruto = Math.round(passo - (proximo - ctx.currentTime) / PASSO)
     grav.eventos.push({ p: ((bruto % n) + n) % n, v: Math.floor(bruto / n), lado, dedo, sobe })
     avisar()
   }
 
-  // estado de cada camada gravada no ponto atual do loop
   function recalcularCamadaG() {
     const pos = ctx && timer ? passoAtual() : 0
     for (const lado of ['esq', 'dir']) {
@@ -942,7 +872,7 @@ export function criarMusica() {
   }
 
   return {
-    // precisa ser chamado dentro de um clique/toque/tecla (política dos navegadores)
+
     destravar() {
       montar()
       if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {})
@@ -975,7 +905,6 @@ export function criarMusica() {
       desligarRelogio()
     },
 
-        // controle de volume individual da mesa de som (0 a 1.5)
     definirVolume(id, valor) {
       const v = Math.max(0, Math.min(1.5, Number(valor) || 0))
       volumes[id] = v
@@ -995,23 +924,18 @@ export function criarMusica() {
       return { ...volumes }
     },
 
-    // volume geral (0 a 1); a tela liga isso ao progresso da animação
     nivel(v) {
       if (!mestre) return
       const previa = performance.now() < previaAte
-      // o loop gravado toca no volume cheio, mesmo com o efeito de câmera desligado
+
       mestre.gain.value = (previa || grav.reproduzindo ? Math.max(limitar(v), 1) : limitar(v)) * 0.85
     },
 
-    // estados: 5 booleans (polegar, indicador, médio, anelar, mindinho): true = dedo levantado.
-    // A 1ª chamada de cada mão só registra onde estão os dedos (tudo mudo, sem efeitos).
-    // Depois, levantar um dedo liga a camada dele e dispara o efeito de subida;
-    // fechar desliga a camada e dispara o efeito de descida.
     dedos(lado, estados) {
       const anterior = ativas[lado]
       ativas[lado] = estados.slice()
       if (!anterior) {
-        // mão voltou para a câmera: os dedos mantidos continuam como estavam
+
         camada[lado] = camada[lado].map((v, i) => (manter[lado][i] ? v : COMECAM_LIGADAS ? estados[i] : false))
         return
       }
@@ -1020,11 +944,11 @@ export function criarMusica() {
       let disparados = 0
       for (let i = 0; i < 5; i++) {
         if (estados[i] === anterior[i]) continue
-        camada[lado][i] = estados[i] // liga/desliga a camada na hora
+        camada[lado][i] = estados[i]
         registrar(lado, i, estados[i])
-        if (!estados[i]) pararFonte(lado, i) // dedo fechado: para o arquivo de áudio
+        if (!estados[i]) pararFonte(lado, i)
         if (!ctx || disparados >= 3) continue
-        if (agora - ultimoEfeito[lado][i] < 300) continue // evita repetir se o dedo tremer
+        if (agora - ultimoEfeito[lado][i] < 300) continue
         ultimoEfeito[lado][i] = agora
         const fx = efeitoDo(lado, i)
         if (estados[i]) fx.subir(t)
@@ -1033,23 +957,21 @@ export function criarMusica() {
       }
     },
 
-    // a mão saiu da câmera: silencia as camadas dela (sem efeitos)
     soltar(lado) {
       ativas[lado] = null
       for (let d = 0; d < 5; d++) {
-        if (manter[lado][d]) continue // dedo mantido: continua tocando (inclusive arquivo de áudio)
+        if (manter[lado][d]) continue
         if (camada[lado][d]) registrar(lado, d, false)
         camada[lado][d] = false
         pararFonte(lado, d)
       }
     },
 
-    // quais dedos continuam tocando sem aparecer: { esq: [5 booleans], dir: [5 booleans] }
     definirManter(novo) {
       for (const lado of ['esq', 'dir']) {
         for (let d = 0; d < 5; d++) {
           manter[lado][d] = !!novo[lado][d]
-          // dedo que deixou de ser mantido e cuja mão não está na câmera: silencia na hora
+
           if (!manter[lado][d] && !ativas[lado]) {
             camada[lado][d] = false
             pararFonte(lado, d)
@@ -1058,20 +980,19 @@ export function criarMusica() {
       }
     },
 
-    // esq/dir: { angulo (graus, 0 = dedos para cima), y (0 topo a 1 base) }
     controlar({ esq, dir }) {
       if (!ctx) return
       if (esq) {
-        // inclinar a mão esquerda troca a nota do baixo 808 (e do acid/pad)
+
         const idx = Math.round(limitar((esq.angulo + 60) / 120) * (PENTATONICA_ATUAL.length - 1))
         e.raiz = BASE_BAIXO + PENTATONICA_ATUAL[idx]
-        // mão mais alta = hi-hats mais brilhantes
+
         e.hat = limitar((0.85 - esq.y) / 0.6)
       }
       if (dir) {
-        // inclinar a mão direita sobe/desce o arpejo e os hoovers pela escala
+
         e.desloc = Math.round(limitar((dir.angulo + 60) / 120) * 8) - 3
-        // mão mais alta = som mais aberto e mais eco
+
         e.brilho = limitar((0.85 - dir.y) / 0.6)
         const agora = ctx.currentTime
         filtroLead.frequency.setTargetAtTime(500 + Math.pow(e.brilho, 1.6) * 6500, agora, 0.08)
@@ -1079,13 +1000,11 @@ export function criarMusica() {
       }
     },
 
-    // remixagem: { ritmo?, instrumentos?, escala? }
     remixar(op) {
       Object.assign(remix, op)
       PENTATONICA_ATUAL = ESCALAS[remix.escala].notas
     },
 
-    // define qual som cada dedo toca: { esq: [5 ids], dir: [5 ids] }
     definirMapa(novo) {
       for (const lado of ['esq', 'dir']) {
         for (let d = 0; d < 5; d++) pararFonte(lado, d)
@@ -1093,13 +1012,11 @@ export function criarMusica() {
       }
     },
 
-    // troca o som de um dedo
     mapear(lado, dedo, id) {
       pararFonte(lado, dedo)
       mapa[lado][dedo] = id
     },
 
-    // carrega um arquivo de áudio do computador (mp3, wav, ogg, m4a...)
     async carregarArquivo(arquivo) {
       montar()
       if (!ctx) throw new Error('Este navegador não suporta áudio.')
@@ -1111,7 +1028,6 @@ export function criarMusica() {
       return { id, nome, modo: 'uma' }
     },
 
-    // toca o som uma vez para ouvir como ele é (funciona mesmo com o efeito desligado)
     prever(id) {
       montar()
       if (!ctx) return
@@ -1123,12 +1039,12 @@ export function criarMusica() {
         try {
           fontePrevia.stop()
         } catch {
-          /* já tinha parado */
+
         }
         fontePrevia = null
       }
       if (SONS[id]) {
-        // som do app: toca um trecho curto do próprio padrão
+
         SONS[id].subir(t)
       } else if (SONS_ARQUIVO[id]) {
         const src = ctx.createBufferSource()
@@ -1138,24 +1054,21 @@ export function criarMusica() {
         src.connect(g)
         g.connect(mestre)
         src.start(t)
-        src.stop(t + 4) // pré-escuta de no máximo 4 s
+        src.stop(t + 4)
         fontePrevia = src
       }
     },
 
-    // pitch global em semitons (giro das mãos)
     transpor(semitons) {
       TRANSP = semitons
     },
 
-    // ---------------- gravador ----------------
     aoMudarGravacao(fn) {
       aoMudarGrav = fn
     },
 
     obterGravacao: instantaneo,
 
-    // começa a gravar (o loop passa a tocar junto, para gravar por cima)
     gravar() {
       montar()
       if (!ctx) return
@@ -1163,7 +1076,7 @@ export function criarMusica() {
       if (grav.gravando) return
       if (!grav.reproduzindo) iniciarLoop()
       grav.gravando = true
-      // dedos que já estão levantados entram na gravação a partir daqui
+
       for (const lado of ['esq', 'dir']) {
         for (let d = 0; d < 5; d++) if (camada[lado][d]) registrar(lado, d, true)
       }
@@ -1176,7 +1089,6 @@ export function criarMusica() {
       avisar()
     },
 
-    // toca o que foi gravado, em loop
     tocarLoop() {
       montar()
       if (!ctx) return
@@ -1216,7 +1128,6 @@ export function criarMusica() {
       avisar()
     },
 
-    // posição do loop de 0 a 1 (-1 = não está tocando)
     posicaoLoop() {
       if (!ctx || !timer || !grav.reproduzindo) return -1
       const n = grav.compassos * 16
